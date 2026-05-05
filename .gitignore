@@ -1,0 +1,29 @@
+# Node
+node_modules/
+dist/
+build/
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Mac/OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# SMPL Models (Large files)
+backend/models/smpl/*.pkl
+backend/models/smpl/*.npz
+backend/models/smpl/smpl_models/

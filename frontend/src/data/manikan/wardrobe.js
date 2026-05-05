@@ -1,0 +1,92 @@
+export const wardrobeItems = [
+  {
+    id: "w1",
+    name: "White Linen Shirt",
+    category: "Tops",
+    color: "White",
+    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=400&q=80",
+    tags: ["Casual", "Work", "Summer"],
+    owned: true,
+  },
+  {
+    id: "w2",
+    name: "Navy Slim Chinos",
+    category: "Bottoms",
+    color: "Navy",
+    image: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=400&q=80",
+    tags: ["Work", "Smart Casual"],
+    owned: true,
+  },
+  {
+    id: "w3",
+    name: "Camel Blazer",
+    category: "Outerwear",
+    color: "Camel",
+    image: "https://images.unsplash.com/photo-1593030761757-71fae45fa0e7?w=400&q=80",
+    tags: ["Work", "Event"],
+    owned: true,
+  },
+  {
+    id: "w4",
+    name: "Black Tee",
+    category: "Tops",
+    color: "Black",
+    image: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=400&q=80",
+    tags: ["Casual", "Everyday"],
+    owned: true,
+  },
+  {
+    id: "w5",
+    name: "Stone Wide-Leg Trousers",
+    category: "Bottoms",
+    color: "Stone",
+    image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400&q=80",
+    tags: ["Work", "Smart Casual"],
+    owned: true,
+  },
+  {
+    id: "w6",
+    name: "Cream Knit Dress",
+    category: "Dresses",
+    color: "Cream",
+    image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400&q=80",
+    tags: ["Event", "Date Night"],
+    owned: true,
+  },
+];
+
+export const outfitCombinations = [
+  {
+    id: "o1",
+    name: "Smart Casual Friday",
+    items: ["w1", "w2", "w3"],
+    occasion: "Work",
+    confidence: 95,
+  },
+  {
+    id: "o2",
+    name: "Weekend Relaxed",
+    items: ["w4", "w5"],
+    occasion: "Casual",
+    confidence: 88,
+  },
+  {
+    id: "o3",
+    name: "Evening Event",
+    items: ["w6", "w3"],
+    occasion: "Event",
+    confidence: 92,
+  },
+];
+
+export const userProfile = {
+  name: "Sara Ahmed",
+  height: 165,
+  weight: 60,
+  fitPreference: "Regular",
+  topSize: "M",
+  bottomSize: "M",
+  shoeSize: "38",
+  favoriteColors: ["Sage", "Cream", "Navy"],
+  stylePreferences: ["Smart Casual", "Minimalist"],
+};
