@@ -1,124 +1,101 @@
-
-
 # Manikan MVP
 
-**Real-time 3D body avatar generation from anthropometric measurements.**
+**A comprehensive platform for real-time 3D body avatar generation, virtual try-on, and B2B fashion e-commerce integration.**
 
-Manikan takes five body measurements — height, weight, chest, waist, and hips — and produces a physically accurate 3D human mesh in under 5 seconds. The engine uses differentiable optimisation over the SMPL parametric body model to solve for shape parameters that match the target proportions.
+Manikan MVP is a full-stack platform that transforms five basic anthropometric measurements (height, weight, chest, waist, and hips) into a physically accurate 3D human mesh in under 5 seconds. This repository encompasses both the robust AI-driven 3D generation engine and a complete suite of consumer and business-facing frontend interfaces.
 
-Built as a full-stack web application with a React + Three.js frontend and a FastAPI + PyTorch backend.
+## 🌟 Key Features
 
----
-
-## Demo
-
-<!-- Replace the line below with your demo video or GIF -->
-<!-- Example: ![Manikan Demo](./docs/assets/demo.mp4) -->
-
-
-![Manikan Demo](docs/demo.gif)
+*   **Real-Time 3D Avatar Engine**: Differentiable optimization over the SMPL parametric body model using PyTorch, resolving shape parameters to accurately match target proportions.
+*   **Consumer Storefront**: A modern e-commerce experience featuring dynamic product pages, size recommendations, and interactive 3D virtual try-ons.
+*   **B2B Dashboard & Marketing**: Dedicated business landing pages, pricing models, event styling hubs, and wardrobe management dashboards for enterprise clients.
+*   **Seamless Integration**: A modular React + Three.js frontend communicating with a high-performance FastAPI backend.
 
 ---
 
-## How It Works
+## 🏗️ Project Structure
 
-The system operates in three stages. For a detailed technical write-up, see [docs/technical-overview.md](./docs/technical-overview.md).
+The repository is organized into a modular full-stack architecture:
 
-**1. Measurement Input**
-The user provides five standard body measurements through the web interface: height (cm), weight (kg), chest circumference (cm), waist circumference (cm), and hip circumference (cm). An optional sex parameter selects the appropriate body model.
-
-**2. Differentiable Optimisation**
-The backend solves for the 10 SMPL shape parameters using gradient descent. A forward pass through the SMPL model generates a mesh, circumferences are measured on the mesh surface using vertex rings extracted via convex hull projection, and the loss between measured and target values drives the optimiser. Height is handled separately through global scaling to prevent gradient conflicts between height and shape.
-
-**3. Mesh Export**
-The final mesh is uniformly scaled to the exact target height, converted to a GLB binary, and streamed back to the frontend where it is rendered in a Three.js scene with PBR lighting.
-
----
-
-## Project Structure
-
-```
+```text
 manican-mvp/
-├── backend/
-│   ├── main.py              # FastAPI server + SMPL optimisation engine
-│   ├── requirements.txt     # Python dependencies
-│   ├── models/
-│   │   └── smpl/            # SMPL model files (not tracked — see setup)
-│   └── tools/
-│       └── clean_smpl_pkl.py  # Utility to prepare SMPL pickle files
+├── backend/                  # AI & API Engine
+│   ├── main.py               # FastAPI server & SMPL optimization endpoints
+│   ├── requirements.txt      # Python dependencies
+│   ├── models/smpl/          # SMPL model directory (requires manual setup)
+│   └── tools/                # Utility scripts (e.g., SMPL pickle cleaners)
 │
-├── frontend/
+├── frontend/                 # Web Platform (B2C & B2B)
 │   ├── src/
-│   │   ├── App.jsx           # Root layout — split-pane dashboard
-│   │   ├── index.css         # Design system tokens and global styles
-│   │   └── components/
-│   │       ├── ControlPanel.jsx      # Measurement sliders + generate button
-│   │       ├── MeasurementSlider.jsx  # Reusable range input component
-│   │       └── AvatarViewer.jsx      # Three.js 3D viewer + loading overlay
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
+│   │   ├── components/       # Reusable UI (ManikanWidget, ControlPanel, etc.)
+│   │   ├── pages/            # Core views (StorePage, ProductDetailPage, etc.)
+│   │   │   └── manikan/      # B2B & specialized marketing views
+│   │   ├── App.jsx           # Main application routing
+│   │   └── main.jsx          # React entry point
+│   ├── package.json          # Node dependencies
+│   └── vite.config.js        # Build configuration
 │
-├── docs/
-│   ├── technical-overview.md  # Detailed technical documentation
-│   └── assets/                # Screenshots, demo videos, diagrams
-│
-└── README.md
+└── docs/                     # Documentation and assets
 ```
 
 ---
 
-## Setup
+## 🚀 Setup & Installation
 
 ### Prerequisites
+*   **Python 3.10+**
+*   **Node.js 18+**
+*   **SMPL Models**: Obtain `SMPL_MALE.pkl` and `SMPL_FEMALE.pkl` from [smpl.is.tue.mpg.de](https://smpl.is.tue.mpg.de/)
 
-- Python 3.10+
-- Node.js 18+
-- SMPL model files (`SMPL_MALE.pkl`, `SMPL_FEMALE.pkl`) from [smpl.is.tue.mpg.de](https://smpl.is.tue.mpg.de/)
-
-### Backend
+### 1. Backend Initialization
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Place your SMPL `.pkl` files in `backend/models/smpl/`, then clean them for use with `smplx`:
-
+**Prepare the SMPL Models:**
+Place your `.pkl` files inside `backend/models/smpl/`, then run the cleaner tool:
 ```bash
 python tools/clean_smpl_pkl.py
 ```
 
-Start the server:
-
+**Start the API Server:**
 ```bash
 python -m uvicorn main:app --reload
 ```
+*The API will be available at `http://localhost:8000`.*
 
-The API will be available at `http://localhost:8000`.
-
-### Frontend
+### 2. Frontend Initialization
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-The UI will be available at `http://localhost:5173`.
+*The Web App will be available at `http://localhost:5173`.*
 
 ---
 
-## API
+## 🛠️ Technology Stack
 
-### POST /generate-avatar
+| Layer | Technologies Used |
+| :--- | :--- |
+| **Frontend** | React, Vite, Tailwind CSS, Three.js, React Three Fiber |
+| **Backend** | FastAPI, PyTorch, smplx, trimesh |
+| **3D Modeling** | SMPL (Skinned Multi-Person Linear Model) |
+| **Data Transport**| REST API, Binary GLB Streaming |
 
-Generates a 3D body mesh from measurements.
+---
 
-**Request body:**
+## 📚 Core API Reference
 
+### `POST /generate-avatar`
+Generates a customized 3D body mesh.
+
+**Payload:**
 ```json
 {
   "sex": "male",
@@ -129,30 +106,14 @@ Generates a 3D body mesh from measurements.
   "hips_cm": 96
 }
 ```
-
-**Response:** Binary GLB file (`application/octet-stream`)
-
----
-
-## Tech Stack
-
-| Layer     | Technology                        |
-|-----------|-----------------------------------|
-| Frontend  | React, Three.js, React Three Fiber, Tailwind CSS, Vite |
-| Backend   | FastAPI, PyTorch, smplx, trimesh  |
-| 3D Model  | SMPL (Skinned Multi-Person Linear Model) |
-| Transport | REST API, binary GLB streaming    |
+**Response:** Binary `.glb` file (`application/octet-stream`) ready for Three.js rendering.
 
 ---
 
-## References
+## 📄 Licensing & Credits
 
-- Loper, M., Mahmood, N., Romero, J., Pons-Moll, G., & Black, M. J. (2015). *SMPL: A Skinned Multi-Person Linear Model.* ACM Transactions on Graphics.
-- Bogo, F., et al. (2016). *Keep it SMPL: Automatic Estimation of 3D Human Pose and Shape from a Single Image.* ECCV.
-- Bojanic, D. (2023). *SMPL-Anthropometry.* GitHub. [github.com/DavidBoja/SMPL-Anthropometry](https://github.com/DavidBoja/SMPL-Anthropometry)
-
----
-
-## License
-
-This project is provided for demonstration purposes. SMPL model files are subject to the [SMPL Model License](https://smpl.is.tue.mpg.de/modellicense).
+*   **Platform Code**: Manikan MVP proprietary source code.
+*   **SMPL Models**: Subject to the strict [SMPL Model License](https://smpl.is.tue.mpg.de/modellicense) for non-commercial/academic use, or custom commercial licensing.
+*   **Academic References**:
+    *   Loper, M., et al. (2015). *SMPL: A Skinned Multi-Person Linear Model.*
+    *   Bojanic, D. (2023). *SMPL-Anthropometry.*
