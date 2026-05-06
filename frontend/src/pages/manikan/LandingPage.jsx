@@ -144,6 +144,384 @@ function OldWayColorSizeDemo() {
   );
 }
 
+// ─── Body Demo Presets ──────────────────────────────────────────────────────
+const BODY_PRESETS = [
+  { labelKey: 'demo_preset_athletic',   height: 178, weight: 82, chest: 102, waist: 80, hips: 96 },
+  { labelKey: 'demo_preset_slim',         height: 170, weight: 60, chest: 86,  waist: 70, hips: 88 },
+  { labelKey: 'demo_preset_curvy',            height: 165, weight: 78, chest: 100, waist: 82, hips: 108 },
+  { labelKey: 'demo_preset_tall',      height: 188, weight: 75, chest: 94,  waist: 76, hips: 92 },
+];
+
+const PARAM_RANGES = {
+  height: { min: 150, max: 200 },
+  weight: { min: 45, max: 120 },
+  chest:  { min: 70, max: 130 },
+  waist:  { min: 55, max: 110 },
+  hips:   { min: 70, max: 130 },
+};
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ─── Animated Body SVG Silhouette ───────────────────────────────────────────
+function BodySilhouette({ params }) {
+  // Map measurements to visual proportions for the silhouette
+  const norm = (val, key) => {
+    const r = PARAM_RANGES[key];
+    return (val - r.min) / (r.max - r.min);
+  };
+
+  const heightScale = 0.85 + norm(params.height, 'height') * 0.3;
+  const shoulderW = 34 + norm(params.chest, 'chest') * 22;
+  const chestW = 30 + norm(params.chest, 'chest') * 20;
+  const waistW = 22 + norm(params.waist, 'waist') * 18;
+  const hipW = 28 + norm(params.hips, 'hips') * 22;
+  const legGap = 2 + norm(params.weight, 'weight') * 4;
+
+  const cx = 90;
+  const headR = 11;
+  const headY = 30;
+  const neckY = headY + headR + 4;
+  const shoulderY = neckY + 8;
+  const chestY = shoulderY + 28 * heightScale;
+  const waistY = chestY + 22 * heightScale;
+  const hipY = waistY + 16 * heightScale;
+  const kneeY = hipY + 38 * heightScale;
+  const footY = kneeY + 34 * heightScale;
+
+  // Build the body path (right side, then mirror)
+  const bodyPath = `
+    M ${cx} ${neckY}
+    C ${cx} ${neckY + 2}, ${cx + shoulderW * 0.5} ${shoulderY - 2}, ${cx + shoulderW * 0.5} ${shoulderY}
+    L ${cx + shoulderW * 0.48} ${shoulderY + 4}
+    C ${cx + shoulderW * 0.48} ${shoulderY + 10}, ${cx + chestW * 0.5} ${chestY - 6}, ${cx + chestW * 0.5} ${chestY}
+    C ${cx + chestW * 0.5} ${chestY + 4}, ${cx + waistW * 0.5} ${waistY - 4}, ${cx + waistW * 0.5} ${waistY}
+    C ${cx + waistW * 0.5} ${waistY + 4}, ${cx + hipW * 0.5} ${hipY - 4}, ${cx + hipW * 0.5} ${hipY}
+    L ${cx + legGap + 8} ${kneeY}
+    L ${cx + legGap + 6} ${footY}
+    L ${cx + legGap - 1} ${footY}
+    L ${cx + legGap + 1} ${kneeY}
+    L ${cx + 1} ${hipY + 8}
+    L ${cx - 1} ${hipY + 8}
+    L ${cx - legGap - 1} ${kneeY}
+    L ${cx - legGap + 1} ${footY}
+    L ${cx - legGap - 6} ${footY}
+    L ${cx - legGap - 8} ${kneeY}
+    L ${cx - hipW * 0.5} ${hipY}
+    C ${cx - hipW * 0.5} ${hipY - 4}, ${cx - waistW * 0.5} ${waistY + 4}, ${cx - waistW * 0.5} ${waistY}
+    C ${cx - waistW * 0.5} ${waistY - 4}, ${cx - chestW * 0.5} ${chestY + 4}, ${cx - chestW * 0.5} ${chestY}
+    C ${cx - chestW * 0.5} ${chestY - 6}, ${cx - shoulderW * 0.48} ${shoulderY + 10}, ${cx - shoulderW * 0.48} ${shoulderY + 4}
+    L ${cx - shoulderW * 0.5} ${shoulderY}
+    C ${cx - shoulderW * 0.5} ${shoulderY - 2}, ${cx} ${neckY + 2}, ${cx} ${neckY}
+    Z
+  `;
+
+  // Arm paths
+  const armR = `M ${cx + shoulderW * 0.5} ${shoulderY + 2}
+    C ${cx + shoulderW * 0.5 + 6} ${shoulderY + 8}, ${cx + shoulderW * 0.5 + 10} ${chestY}, ${cx + shoulderW * 0.5 + 8} ${chestY + 18 * heightScale}
+    L ${cx + shoulderW * 0.5 + 4} ${chestY + 18 * heightScale}
+    C ${cx + shoulderW * 0.5 + 4} ${chestY}, ${cx + shoulderW * 0.5 + 2} ${shoulderY + 14}, ${cx + shoulderW * 0.44} ${shoulderY + 6}
+    Z`;
+  const armL = `M ${cx - shoulderW * 0.5} ${shoulderY + 2}
+    C ${cx - shoulderW * 0.5 - 6} ${shoulderY + 8}, ${cx - shoulderW * 0.5 - 10} ${chestY}, ${cx - shoulderW * 0.5 - 8} ${chestY + 18 * heightScale}
+    L ${cx - shoulderW * 0.5 - 4} ${chestY + 18 * heightScale}
+    C ${cx - shoulderW * 0.5 - 4} ${chestY}, ${cx - shoulderW * 0.5 - 2} ${shoulderY + 14}, ${cx - shoulderW * 0.44} ${shoulderY + 6}
+    Z`;
+
+  return (
+    <svg viewBox="0 0 180 280" style={{ width: '100%', maxWidth: '220px', height: 'auto' }}>
+      <defs>
+        <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#818cf8" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#6366f1" stopOpacity="0.3" />
+        </linearGradient>
+        <linearGradient id="bodyStroke" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#6366f1" />
+        </linearGradient>
+        <filter id="bodyGlow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* Grid lines for tech look */}
+      {[60, 90, 120, 150, 180, 210, 240].map(y => (
+        <line key={y} x1="10" y1={y} x2="170" y2={y} stroke="rgba(129,140,248,0.06)" strokeWidth="0.5" />
+      ))}
+      {[40, 60, 80, 100, 120, 140].map(x => (
+        <line key={x} x1={x} y1="20" x2={x} y2="270" stroke="rgba(129,140,248,0.06)" strokeWidth="0.5" />
+      ))}
+
+      {/* Body */}
+      <g filter="url(#bodyGlow)" style={{ transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        <path d={bodyPath} fill="url(#bodyGrad)" stroke="url(#bodyStroke)" strokeWidth="1.2" />
+        <path d={armR} fill="url(#bodyGrad)" stroke="url(#bodyStroke)" strokeWidth="1" />
+        <path d={armL} fill="url(#bodyGrad)" stroke="url(#bodyStroke)" strokeWidth="1" />
+        <circle cx={cx} cy={headY} r={headR} fill="url(#bodyGrad)" stroke="url(#bodyStroke)" strokeWidth="1.2" />
+      </g>
+
+      {/* Measurement indicators */}
+      <g opacity="0.5" style={{ transition: 'all 0.8s ease' }}>
+        {/* Chest line */}
+        <line x1={cx - chestW * 0.5 - 14} y1={chestY} x2={cx + chestW * 0.5 + 14} y2={chestY} stroke="#818cf8" strokeWidth="0.5" strokeDasharray="3 2" />
+        {/* Waist line */}
+        <line x1={cx - waistW * 0.5 - 10} y1={waistY} x2={cx + waistW * 0.5 + 10} y2={waistY} stroke="#818cf8" strokeWidth="0.5" strokeDasharray="3 2" />
+        {/* Hip line */}
+        <line x1={cx - hipW * 0.5 - 12} y1={hipY} x2={cx + hipW * 0.5 + 12} y2={hipY} stroke="#818cf8" strokeWidth="0.5" strokeDasharray="3 2" />
+      </g>
+    </svg>
+  );
+}
+
+// ─── Animated Body Demo Section ─────────────────────────────────────────────
+function BodyDemoSection() {
+  const { t } = useLanguage();
+  const [params, setParams] = useState({ ...BODY_PRESETS[0] });
+  const [presetIndex, setPresetIndex] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
+
+  useEffect(() => {
+    let frameId;
+    let startTime;
+    const HOLD_MS = 2200;
+    const TRANSITION_MS = 1200;
+    const CYCLE_MS = HOLD_MS + TRANSITION_MS;
+
+    const tick = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = (timestamp - startTime) % (CYCLE_MS * BODY_PRESETS.length);
+      const currentCycle = Math.floor(elapsed / CYCLE_MS);
+      const cycleElapsed = elapsed - currentCycle * CYCLE_MS;
+
+      const from = BODY_PRESETS[currentCycle % BODY_PRESETS.length];
+      const to = BODY_PRESETS[(currentCycle + 1) % BODY_PRESETS.length];
+
+      if (cycleElapsed < HOLD_MS) {
+        // Holding at current preset
+        setParams({ ...from });
+        setPresetIndex(currentCycle % BODY_PRESETS.length);
+        setTransitioning(false);
+      } else {
+        // Transitioning to next preset
+        const t = Math.min((cycleElapsed - HOLD_MS) / TRANSITION_MS, 1);
+        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+        setParams({
+          labelKey: to.labelKey,
+          height: Math.round(lerp(from.height, to.height, eased)),
+          weight: Math.round(lerp(from.weight, to.weight, eased)),
+          chest:  Math.round(lerp(from.chest,  to.chest,  eased)),
+          waist:  Math.round(lerp(from.waist,  to.waist,  eased)),
+          hips:   Math.round(lerp(from.hips,   to.hips,   eased)),
+        });
+        setTransitioning(true);
+        if (t > 0.5) setPresetIndex((currentCycle + 1) % BODY_PRESETS.length);
+      }
+
+      frameId = requestAnimationFrame(tick);
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  const paramKeys = ['height', 'weight', 'chest', 'waist', 'hips'];
+  const units = [t('demo_cm'), t('demo_kg'), t('demo_cm'), t('demo_cm'), t('demo_cm')];
+
+  const sliderPercent = (key) => {
+    const r = PARAM_RANGES[key];
+    return ((params[key] - r.min) / (r.max - r.min)) * 100;
+  };
+
+  return (
+    <section className="py-24 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <AnimatedSection>
+          <div className="relative bg-forest-900 rounded-3xl overflow-hidden">
+            {/* bg glow */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gold-400/8 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
+            </div>
+
+            <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-0 items-stretch">
+
+              {/* Left: text content */}
+              <div className="p-10 lg:p-14 flex flex-col justify-center">
+                <div className="inline-flex items-center gap-2 bg-accent/10 border border-accent/20 rounded-full px-4 py-2 mb-7 w-fit">
+                  <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+                  <span className="text-xs font-semibold text-accent-bright tracking-wider uppercase">{t('demo_badge')}</span>
+                </div>
+
+                <h2 className="text-4xl sm:text-5xl font-display text-white leading-tight mb-5">
+                  {t('demo_title_1')}<br />
+                  <span style={{ background: 'linear-gradient(90deg,#818cf8,#a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('demo_title_2')}</span><br />
+                  {t('demo_title_3')}
+                </h2>
+
+                <p className="text-forest-300 text-sm leading-relaxed mb-8 max-w-md">
+                  {t('demo_desc')}
+                </p>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    to="/store"
+                    className="inline-flex items-center gap-2.5 px-6 py-3 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent/90 transition-all shadow-lg group"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
+                    </svg>
+                    {t('demo_shop')}
+                    <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <Link
+                    to="/engine"
+                    className="inline-flex items-center gap-2 px-6 py-3 border border-white/15 text-forest-200 text-sm font-medium rounded-xl hover:border-white/30 hover:text-white transition-all"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    {t('demo_engine')}
+                  </Link>
+                </div>
+
+                {/* Mini specs */}
+                <div className="grid grid-cols-3 gap-4 mt-10 pt-8 border-t border-white/10">
+                  {[
+                    { val: t('demo_smpl'), label: t('demo_body_model') },
+                    { val: t('demo_3d'), label: t('demo_real_avatar') },
+                    { val: t('demo_ai'), label: t('demo_fit_pred') },
+                  ].map((s, idx) => (
+                    <div key={idx}>
+                      <p className="text-2xl font-display text-accent-bright">{s.val}</p>
+                      <p className="text-xs text-forest-400 mt-0.5">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: ANIMATED engine UI preview */}
+              <div className="relative hidden lg:block rounded-r-3xl overflow-hidden" style={{ minHeight: '480px', background: 'var(--color-manikan-bg)' }}>
+                <div className="absolute inset-0 flex">
+
+                  {/* Sidebar — animated sliders */}
+                  <div style={{ width: '190px', borderRight: '1px solid var(--color-manikan-border)', padding: '18px 14px', display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--color-manikan-card)' }}>
+                    {/* Preset label */}
+                    <div style={{ marginBottom: '8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#818cf8', fontWeight: 700 }}>
+                        {t(BODY_PRESETS[presetIndex].labelKey)}
+                      </span>
+                    </div>
+
+                    {paramKeys.map((key, i) => (
+                      <div key={key} style={{ marginBottom: '2px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                          <span style={{ color: 'var(--color-forest-500)', fontSize: '10px', textTransform: 'capitalize' }}>{t(`demo_${key}`)}</span>
+                          <span style={{
+                            color: 'var(--color-forest-800)',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            fontVariantNumeric: 'tabular-nums',
+                            minWidth: '42px',
+                            textAlign: 'right',
+                            transition: 'color 0.3s',
+                            ...(transitioning ? { color: '#818cf8' } : {}),
+                          }}>
+                            {params[key]} {units[i]}
+                          </span>
+                        </div>
+                        <div style={{ height: '4px', background: 'var(--color-forest-50)', borderRadius: '999px', position: 'relative', overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${sliderPercent(key)}%`,
+                            background: transitioning
+                              ? 'linear-gradient(90deg, #818cf8, #a78bfa)'
+                              : 'var(--color-forest-500)',
+                            borderRadius: '999px',
+                            transition: 'width 0.15s linear, background 0.4s ease',
+                          }} />
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{ marginTop: 'auto', padding: '10px 0 0' }}>
+                      <div style={{
+                        width: '100%', padding: '10px', borderRadius: '10px',
+                        background: transitioning ? 'linear-gradient(90deg, #818cf8, #6366f1)' : 'var(--color-forest-600)',
+                        color: '#fff', fontSize: '11px', fontWeight: 700, textAlign: 'center',
+                        transition: 'background 0.4s ease',
+                        boxShadow: transitioning ? '0 0 16px rgba(129,140,248,0.3)' : 'none',
+                      }}>
+                        {transitioning ? `⟳ ${t('demo_morphing')}` : `✦ ${t('demo_generate')}`}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3D viewport — animated body silhouette */}
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', background: 'linear-gradient(180deg, var(--color-manikan-bg) 0%, #f0f0f4 100%)' }}>
+                    {/* Status badge */}
+                    <div style={{
+                      position: 'absolute', top: '12px', left: '12px',
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                      padding: '4px 10px', borderRadius: '999px',
+                      background: 'var(--color-manikan-card)',
+                      border: '1px solid var(--color-manikan-border)',
+                      fontSize: '9px',
+                      color: transitioning ? '#818cf8' : 'var(--color-forest-500)',
+                      textTransform: 'uppercase', letterSpacing: '0.1em',
+                      transition: 'color 0.3s',
+                    }}>
+                      <div style={{
+                        width: '5px', height: '5px', borderRadius: '50%',
+                        background: transitioning ? '#818cf8' : '#34d399',
+                        boxShadow: transitioning ? '0 0 5px rgba(129,140,248,0.4)' : '0 0 5px rgba(52,211,153,0.4)',
+                        transition: 'all 0.3s',
+                      }} />
+                      {transitioning ? t('demo_morphing_body') : t('demo_ready')}
+                    </div>
+
+                    {/* Preset dots — shows which profile is active */}
+                    <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '5px' }}>
+                      {BODY_PRESETS.map((p, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            width: i === presetIndex ? '18px' : '5px',
+                            height: '5px',
+                            borderRadius: '999px',
+                            background: i === presetIndex ? '#818cf8' : 'var(--color-forest-200)',
+                            transition: 'all 0.4s ease',
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Body silhouette */}
+                    <BodySilhouette params={params} />
+
+                    {/* Bottom label */}
+                    <div style={{
+                      position: 'absolute', bottom: '12px', left: '50%', transform: 'translateX(-50%)',
+                      padding: '4px 12px', borderRadius: '999px',
+                      background: 'var(--color-manikan-card)',
+                      border: '1px solid var(--color-manikan-border)',
+                      fontSize: '9px', color: 'var(--color-forest-500)', whiteSpace: 'nowrap',
+                    }}>
+                      {t('demo_auto_play')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </AnimatedSection>
+      </div>
+    </section>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const { t } = useLanguage();
@@ -392,6 +770,10 @@ export default function LandingPage() {
         </div>
       </section>
 
+
+      {/* ── 3D ENGINE FEATURE — ANIMATED AUTO-PLAY DEMO ───────────────── */}
+      <BodyDemoSection />
+
       {/* ── SOLUTION / FEATURES ──────────────────────────────────────── */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-forest-900 relative overflow-hidden">
         {/* bg pattern */}
@@ -527,8 +909,8 @@ export default function LandingPage() {
                     <Zap size={20} className="text-forest-900" />
                   </div>
                   <div>
-                    <h3 className="font-display text-lg text-white mb-1">One line of code</h3>
-                    <p className="text-sm text-forest-300 leading-relaxed">Drop our widget on any product page. Works with React, Vue, Shopify, WooCommerce — any stack.</p>
+                    <h3 className="font-display text-lg text-white mb-1">{t('sol_prop1_title')}</h3>
+                    <p className="text-sm text-forest-300 leading-relaxed">{t('sol_prop1_desc')}</p>
                   </div>
                 </div>
 
@@ -538,8 +920,8 @@ export default function LandingPage() {
                     <Ruler size={20} className="text-forest-900" />
                   </div>
                   <div>
-                    <h3 className="font-display text-lg text-white mb-1">AI-powered fit prediction</h3>
-                    <p className="text-sm text-forest-300 leading-relaxed">Our model maps your brand's sizing to each shopper's body. Confidence scores build trust at checkout.</p>
+                    <h3 className="font-display text-lg text-white mb-1">{t('sol_prop2_title')}</h3>
+                    <p className="text-sm text-forest-300 leading-relaxed">{t('sol_prop2_desc')}</p>
                   </div>
                 </div>
 
@@ -549,16 +931,16 @@ export default function LandingPage() {
                     <BarChart3 size={20} className="text-forest-900" />
                   </div>
                   <div>
-                    <h3 className="font-display text-lg text-white mb-1">Returns dashboard included</h3>
-                    <p className="text-sm text-forest-300 leading-relaxed">Track fit preferences, return drivers, and conversion lift — all from one analytics panel.</p>
+                    <h3 className="font-display text-lg text-white mb-1">{t('sol_prop3_title')}</h3>
+                    <p className="text-sm text-forest-300 leading-relaxed">{t('sol_prop3_desc')}</p>
                   </div>
                 </div>
 
                 {/* Mini social proof */}
                 <div className="bg-forest-800/50 rounded-xl p-4 border border-gold-400/15 mt-2">
                   <p className="text-xs text-forest-300 leading-relaxed">
-                    <span className="text-gold-400 font-semibold">"Integrated in under 10 minutes."</span>
-                    {' '}— Dina M., Head of E-Commerce, Forma Basics
+                    <span className="text-gold-400 font-semibold">{t('sol_quote')}</span>
+                    {' '}{t('sol_quote_author')}
                   </p>
                 </div>
               </div>
@@ -685,122 +1067,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── 3D ENGINE FEATURE ─────────────────────────────────────────── */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <AnimatedSection>
-            <div className="relative bg-forest-900 rounded-3xl overflow-hidden">
-              {/* bg glow */}
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-accent/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gold-400/8 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
-              </div>
-
-              <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-0 items-stretch">
-
-                {/* Left: text content */}
-                <div className="p-10 lg:p-14 flex flex-col justify-center">
-                  <div className="inline-flex items-center gap-2 bg-accent/10 border border-accent/20 rounded-full px-4 py-2 mb-7 w-fit">
-                    <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
-                    <span className="text-xs font-semibold text-accent-bright tracking-wider uppercase">Live Technology Demo</span>
-                  </div>
-
-                  <h2 className="text-4xl sm:text-5xl font-display text-white leading-tight mb-5">
-                    See Clothes on a<br />
-                    <span style={{ background: 'linear-gradient(90deg,#818cf8,#a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Real 3D Body</span>
-                  </h2>
-
-                  <p className="text-forest-300 text-sm leading-relaxed mb-8 max-w-md">
-                    Enter height, weight, chest, waist and hips — our AI generates your personalized 3D avatar using the SMPL body model. Then try any garment on it before you buy.
-                  </p>
-
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      to="/store"
-                      className="inline-flex items-center gap-2.5 px-6 py-3 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent/90 transition-all shadow-lg group"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
-                      </svg>
-                      Shop & Try On
-                      <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
-                    </Link>
-                    <Link
-                      to="/engine"
-                      className="inline-flex items-center gap-2 px-6 py-3 border border-white/15 text-forest-200 text-sm font-medium rounded-xl hover:border-white/30 hover:text-white transition-all"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      Open Avatar Engine
-                    </Link>
-                  </div>
-
-                  {/* Mini specs */}
-                  <div className="grid grid-cols-3 gap-4 mt-10 pt-8 border-t border-white/10">
-                    {[
-                      { val: 'SMPL', label: 'Body Model' },
-                      { val: '3D', label: 'Real Avatar' },
-                      { val: 'AI', label: 'Fit Prediction' },
-                    ].map((s) => (
-                      <div key={s.val}>
-                        <p className="text-2xl font-display text-accent-bright">{s.val}</p>
-                        <p className="text-xs text-forest-400 mt-0.5">{s.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Right: engine UI preview */}
-                <div className="relative hidden lg:block bg-surface-primary rounded-r-3xl overflow-hidden" style={{ minHeight: '420px', background: 'var(--color-manikan-bg)' }}>
-                  {/* Light engine UI mockup */}
-                  <div className="absolute inset-0 flex">
-                    {/* Sidebar mockup */}
-                    <div style={{ width: '170px', borderRight: '1px solid var(--color-manikan-border)', padding: '20px 14px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--color-manikan-card)' }}>
-                      {['Height', 'Weight', 'Chest', 'Waist', 'Hips'].map((label, i) => (
-                        <div key={label}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span style={{ color: 'var(--color-forest-500)', fontSize: '10px' }}>{label}</span>
-                            <span style={{ color: 'var(--color-forest-800)', fontSize: '10px', fontWeight: 700 }}>{[175, 75, 96, 82, 96][i]} {['cm','kg','cm','cm','cm'][i]}</span>
-                          </div>
-                          <div style={{ height: '3px', background: 'var(--color-forest-50)', borderRadius: '999px' }}>
-                            <div style={{ height: '100%', width: `${[65,30,45,35,45][i]}%`, background: 'var(--color-forest-500)', borderRadius: '999px' }} />
-                          </div>
-                        </div>
-                      ))}
-                      <div style={{ marginTop: 'auto', padding: '10px 0 0' }}>
-                        <div style={{ width: '100%', padding: '10px', borderRadius: '10px', background: 'var(--color-forest-600)', color: '#fff', fontSize: '11px', fontWeight: 700, textAlign: 'center' }}>
-                          ✦ GENERATE AVATAR
-                        </div>
-                      </div>
-                    </div>
-                    {/* 3D viewport mockup */}
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                      <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '999px', background: 'var(--color-manikan-card)', border: '1px solid var(--color-manikan-border)', fontSize: '9px', color: 'var(--color-forest-500)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 5px rgba(52, 211, 153, 0.4)' }} />
-                        Avatar Ready
-                      </div>
-                      {/* Wireframe sphere placeholder */}
-                      <svg width="180" height="180" viewBox="0 0 180 180" fill="none" opacity="0.3">
-                        <circle cx="90" cy="90" r="80" stroke="var(--color-forest-400)" strokeWidth="0.8" />
-                        <circle cx="90" cy="90" r="60" stroke="var(--color-forest-400)" strokeWidth="0.8" />
-                        <circle cx="90" cy="90" r="40" stroke="var(--color-forest-500)" strokeWidth="1" />
-                        <ellipse cx="90" cy="90" rx="80" ry="30" stroke="var(--color-forest-400)" strokeWidth="0.8" />
-                        <ellipse cx="90" cy="90" rx="80" ry="55" stroke="var(--color-forest-400)" strokeWidth="0.8" />
-                        <line x1="90" y1="10" x2="90" y2="170" stroke="var(--color-forest-400)" strokeWidth="0.8" />
-                        <line x1="10" y1="90" x2="170" y2="90" stroke="var(--color-forest-400)" strokeWidth="0.8" />
-                      </svg>
-                      <div style={{ position: 'absolute', bottom: '12px', left: '50%', transform: 'translateX(-50%)', padding: '4px 12px', borderRadius: '999px', background: 'var(--color-manikan-card)', border: '1px solid var(--color-manikan-border)', fontSize: '9px', color: 'var(--color-forest-500)', whiteSpace: 'nowrap' }}>
-                        Drag to rotate · Scroll to zoom
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </AnimatedSection>
-        </div>
-      </section>
 
       {/* ── CTA ──────────────────────────────────────────────────────── */}
       <section className="py-24 px-4 sm:px-6 lg:px-8">
