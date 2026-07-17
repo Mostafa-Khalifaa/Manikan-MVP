@@ -89,6 +89,7 @@ export default function ManikanWidget({ product, onClose }) {
           garment_length_cm: product.sizes[size].body_length_cm,
           garment_sleeve_cm: product.sizes[size].sleeve_length_cm,
           garment_shoulder_cm: product.sizes[size].shoulder_width_cm,
+          product_id: product.id,
         }),
       })
 
@@ -114,7 +115,7 @@ export default function ManikanWidget({ product, onClose }) {
       clearTimeout(timeout)
       setIsGenerating(false)
     }
-  }, [sex, height, weight, chest, waist, hips, product.color_hex, product.sizes])
+  }, [sex, height, weight, chest, waist, hips, product.id, product.color_hex, product.sizes])
 
   // Handle "Generate My Body Model" click
   const handleGenerateBody = async () => {

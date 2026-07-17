@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 from contextlib import asynccontextmanager
 from enum import Enum
 from pathlib import Path
@@ -37,6 +38,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+
+import garment  # local: Pipeline 1 / Tier 1 garment engine (real garment mesh)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -52,6 +55,15 @@ logger = logging.getLogger("manikan")
 MODEL_DIR = Path(__file__).resolve().parent / "models"
 NUM_BETAS: int = 10
 DEVICE = torch.device("cpu")
+
+# Product photos live in the frontend's static assets (monorepo sibling dir),
+# served by Vite at "/products/*.png" and referenced that way in
+# PRODUCT_CATALOG below. Read directly off disk for texturing (Phase 4).
+FRONTEND_PUBLIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "public"
+
+# Dressed-avatar engine: "v2" = Pipeline 1 real garment mesh; "v1" = legacy
+# vertex-paint fallback. Overridable via the MANIKAN_DRESSED_ENGINE env var.
+USE_GARMENT_V2: bool = os.getenv("MANIKAN_DRESSED_ENGINE", "v2").lower() != "v1"
 
 # Optimisation hyper-parameters (tuned for SMPL on CPU)
 OPT_ITERATIONS: int = 80
@@ -788,12 +800,17 @@ class DressedAvatarPayload(BaseModel):
     waist_cm: float = Field(..., gt=40, lt=200)
     hips_cm: float = Field(..., gt=50, lt=200)
     tshirt_color_hex: str = Field(
-        ..., description="Hex colour for the t-shirt, e.g. '#1a1a2e'"
+        ..., description="Hex colour for the t-shirt, e.g. '#1a1a2e' (fallback fill "
+                          "used if product_id has no loadable photo)"
     )
     garment_chest_cm: float = Field(...)
     garment_length_cm: float = Field(...)
     garment_sleeve_cm: float = Field(...)
     garment_shoulder_cm: float = Field(...)
+    product_id: Optional[str] = Field(
+        None, description="Catalog product id; if its photo is loadable, the "
+                           "garment is textured with it instead of tshirt_color_hex"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -839,6 +856,7 @@ def generate_dressed_avatar_mesh(
     garment_length_cm: float,
     garment_sleeve_cm: float,
     garment_shoulder_cm: float,
+    **_ignored,  # absorbs v2-only fields (e.g. product_id) when USE_GARMENT_V2=false
 ) -> bytes:
     """
     Generate a body mesh with a t-shirt applied via per-vertex colouring.
@@ -983,6 +1001,120 @@ def generate_dressed_avatar_mesh(
     return glb_bytes
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  DRESSED AVATAR — v2  (Pipeline 1 / Tier 1: real separate garment mesh)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# A product's photo never changes between requests, but preparing it (content
+# detection + crop) isn't free -- cache the prepared texture per product_id
+# rather than redoing it on every try-on request.
+_texture_cache: Dict[str, object] = {}
+_TEXTURE_CACHE_MISS = object()  # sentinel: distinguishes "not cached" from "cached as None"
+
+
+def _load_product_texture(product_id: Optional[str]):
+    """
+    Best-effort load of a product's photo for garment texturing (Phase 4).
+    Returns a cropped PIL Image on success, or None on *any* failure (missing
+    product_id, unknown product, missing file, decode error) -- texturing is
+    a visual enhancement, never a reason to fail avatar generation. Cached
+    per product_id (including negative/failed results).
+    """
+    if not product_id:
+        return None
+    cached = _texture_cache.get(product_id, _TEXTURE_CACHE_MISS)
+    if cached is not _TEXTURE_CACHE_MISS:
+        return cached
+
+    product = _product_index.get(product_id)
+    if not product:
+        logger.warning("Texture skipped: unknown product_id=%s", product_id)
+        _texture_cache[product_id] = None
+        return None
+    image_rel = product.get("image", "")  # e.g. "/products/tshirt-navy.png"
+    image_path = FRONTEND_PUBLIC_DIR / image_rel.lstrip("/")
+    try:
+        from PIL import Image
+        raw = Image.open(image_path).convert("RGB")
+        result = garment.prepare_texture_image(raw, fabric_hex=product.get("color_hex"))
+    except Exception:
+        logger.exception("Texture skipped: failed to load %s", image_path)
+        result = None
+    _texture_cache[product_id] = result
+    return result
+
+
+def generate_dressed_avatar_mesh_v2(
+    sex: str,
+    height_cm: float,
+    weight_kg: float,
+    chest_cm: float,
+    waist_cm: float,
+    hips_cm: float,
+    tshirt_color_hex: str,
+    garment_chest_cm: Optional[float] = None,
+    garment_length_cm: Optional[float] = None,
+    garment_sleeve_cm: Optional[float] = None,
+    garment_shoulder_cm: Optional[float] = None,
+    product_id: Optional[str] = None,
+) -> bytes:
+    """
+    Fit a real, independently-authored garment mesh (MGN t-shirt template) onto
+    the solved SMPL body via surface binding, and export a 2-node (body +
+    garment) GLB.  See backend/garment.py for the fitting method.
+
+    garment_chest_cm drives Phase-3 size differentiation (loosens/tightens the
+    fitted garment relative to the body's own chest measurement). The other
+    garment_* fields (length/sleeve/shoulder) are accepted for API
+    compatibility but not yet consumed. If product_id resolves to a loadable
+    catalog photo, the garment is textured with it (Phase 4); otherwise it
+    falls back to a flat tshirt_color_hex fill.
+    """
+    texture_image = _load_product_texture(product_id)
+    # Step 1: solve the body shape (same optimiser as the plain avatar)
+    model, rings = _load_smpl_model(sex)
+    betas = solve_betas(
+        model=model,
+        rings=rings,
+        target_height_cm=height_cm,
+        target_weight_kg=weight_kg,
+        target_chest_cm=chest_cm,
+        target_waist_cm=waist_cm,
+        target_hips_cm=hips_cm,
+        num_iters=40,
+    )
+
+    # Step 2: body vertices at SMPL native scale (pose = 0; height applied later)
+    with torch.no_grad():
+        output = model(
+            betas=betas.to(DEVICE),
+            global_orient=torch.zeros(1, 3, dtype=torch.float32, device=DEVICE),
+            body_pose=torch.zeros(1, 69, dtype=torch.float32, device=DEVICE),
+            return_verts=True,
+        )
+    body_verts = output.vertices.detach().cpu().numpy().squeeze().astype(np.float64)
+    faces = model.faces
+    faces = np.asarray(faces, dtype=np.int64)
+
+    # Step 3: bind + fit the garment, assemble the 2-node GLB (height applied here)
+    result = garment.dress(
+        model=model,
+        gender=sex,
+        user_body_verts=body_verts,
+        body_faces=faces,
+        color_hex=tshirt_color_hex,
+        target_height_m=height_cm / 100.0,
+        garment_chest_cm=garment_chest_cm,
+        body_chest_cm=chest_cm,
+        texture_image=texture_image,
+    )
+    logger.info(
+        "Dressed avatar v2: garment=%d verts, %d pushed off body, %d bytes",
+        result["garment_verts"], result["n_pushed"], len(result["glb"]),
+    )
+    return result["glb"]
+
+
 # ---------------------------------------------------------------------------
 # Store API Endpoints
 # ---------------------------------------------------------------------------
@@ -1035,10 +1167,14 @@ async def generate_dressed_avatar(payload: DressedAvatarPayload):
     Runs in a thread pool to avoid blocking the async event loop.
     """
     loop = asyncio.get_event_loop()
+    engine_fn = (
+        generate_dressed_avatar_mesh_v2 if USE_GARMENT_V2
+        else generate_dressed_avatar_mesh
+    )
     try:
         glb_bytes = await loop.run_in_executor(
             None,
-            lambda: generate_dressed_avatar_mesh(
+            lambda: engine_fn(
                 sex=payload.sex.value,
                 height_cm=payload.height_cm,
                 weight_kg=payload.weight_kg,
@@ -1050,6 +1186,7 @@ async def generate_dressed_avatar(payload: DressedAvatarPayload):
                 garment_length_cm=payload.garment_length_cm,
                 garment_sleeve_cm=payload.garment_sleeve_cm,
                 garment_shoulder_cm=payload.garment_shoulder_cm,
+                product_id=payload.product_id,
             ),
         )
     except FileNotFoundError as exc:

@@ -92,6 +92,13 @@ npm run dev
 
 ---
 
+## Documentation
+
+*   **[Technical Overview](docs/technical-overview.md)** — how the SMPL avatar engine turns body measurements into a 3D mesh (differentiable optimisation, the "virtual tape measure").
+*   **[Garment Fitting Pipeline](docs/garment-fitting-pipeline.md)** — how virtual try-on works: a real garment mesh bound to the body (not painted skin), size-aware fit, product-photo texturing, and the mesh/rendering bugs found and fixed along the way.
+
+---
+
 ## Technology Stack
 
 | Layer | Technologies Used |
