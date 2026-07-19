@@ -573,6 +573,88 @@ def smooth_garment(
     return smoothed
 
 
+def resample_boundary(
+    garment_verts: np.ndarray,
+    garment_faces: np.ndarray,
+    smooth_iterations: int = 20,
+    relax_iterations: int = 4,
+) -> np.ndarray:
+    """
+    Clean the open boundary loops (hem, neckline, cuffs) of a jagged zigzag left
+    by cutting a triangle mesh at a flat threshold (the SMPL region extraction),
+    which smooth_garment() CANNOT fix because it pins the boundary by design.
+
+    For each boundary loop: periodically smooth the loop (0.25/0.5/0.25 filter)
+    to declaw the high-frequency sawtooth while preserving the loop's genuine
+    low-frequency shape, then redistribute its vertices evenly by arc length
+    (vertex count unchanged, so topology/correspondence is preserved). Finally a
+    few boundary-pinned interior Laplacian passes absorb the boundary moves so
+    the fabric near the edge isn't distorted.
+    """
+    from collections import defaultdict
+    V = garment_verts.astype(np.float64).copy()
+    F = np.asarray(garment_faces, dtype=np.int64)
+
+    ec = defaultdict(int)
+    for f in F:
+        for k in range(3):
+            ec[tuple(sorted((int(f[k]), int(f[(k + 1) % 3]))))] += 1
+    adj = defaultdict(list)
+    for (a, b), c in ec.items():
+        if c == 1:
+            adj[a].append(b); adj[b].append(a)
+
+    seen = set(); loops = []
+    for s in list(adj):
+        if s in seen:
+            continue
+        loop = [s]; seen.add(s); cur = s; prev = None
+        while True:
+            nxt = None
+            for n in adj[cur]:
+                if n == prev:
+                    continue
+                if n == s and len(loop) > 2:
+                    nxt = s; break
+                if n not in seen:
+                    nxt = n; break
+            if nxt is None or nxt == s:
+                break
+            loop.append(nxt); seen.add(nxt); prev, cur = cur, nxt
+        if len(loop) >= 4:
+            loops.append(np.array(loop))
+
+    bset = set()
+    for L in loops:
+        bset.update(L.tolist())
+        P = V[L]
+        for _ in range(smooth_iterations):
+            P = 0.25 * np.roll(P, 1, 0) + 0.5 * P + 0.25 * np.roll(P, -1, 0)
+        seg = np.linalg.norm(np.roll(P, -1, 0) - P, axis=1)
+        cum = np.concatenate([[0], np.cumsum(seg)]); total = cum[-1]
+        targets = np.linspace(0, total, len(P), endpoint=False)
+        newP = np.empty_like(P)
+        for i, t in enumerate(targets):
+            j = min(max(np.searchsorted(cum, t) - 1, 0), len(P) - 1)
+            f = (t - cum[j]) / max(seg[j], 1e-9)
+            newP[i] = P[j] * (1 - f) + P[(j + 1) % len(P)] * f
+        V[L] = newP
+
+    vadj = defaultdict(set)
+    for f in F:
+        for k in range(3):
+            vadj[int(f[k])].update((int(f[(k + 1) % 3]), int(f[(k + 2) % 3])))
+    interior = [i for i in range(len(V)) if i not in bset]
+    for _ in range(relax_iterations):
+        nV = V.copy()
+        for i in interior:
+            nb = list(vadj[i])
+            if nb:
+                nV[i] = 0.5 * V[nb].mean(0) + 0.5 * V[i]
+        V = nV
+    return V
+
+
 def resolve_interpenetration(
     garment_verts: np.ndarray,
     body_verts: np.ndarray,

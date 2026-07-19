@@ -96,6 +96,7 @@ npm run dev
 
 *   **[Technical Overview](docs/technical-overview.md)** — how the SMPL avatar engine turns body measurements into a 3D mesh (differentiable optimisation, the "virtual tape measure").
 *   **[Garment Fitting Pipeline](docs/garment-fitting-pipeline.md)** — how virtual try-on works: a real garment mesh bound to the body (not painted skin), size-aware fit, product-photo texturing, and the mesh/rendering bugs found and fixed along the way.
+*   **[Physics-Baked Garment Drape](docs/physics-drape-pipeline.md)** — realistic cloth drape without runtime simulation: a real Blender cloth sim baked offline across a body-shape grid into a tiny delta library, blended in milliseconds at request time. Includes the isolation tests behind each design decision and the full interpolation/self-intersection validation.
 
 ---
 

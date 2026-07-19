@@ -27,3 +27,9 @@ pip-delete-this-directory.txt
 backend/models/smpl/*.pkl
 backend/models/smpl/*.npz
 backend/models/smpl/smpl_models/
+
+# Pipeline 2 offline bake tooling: Blender venv (~1GB) + scratch bake data.
+# The .py scripts ARE tracked; only the local venv and intermediate .npz caches
+# are ignored. Production assets live under models/garments/tshirt_physics/.
+backend/tools/drape_bake/bpy_venv/
+backend/tools/drape_bake/*.npz
