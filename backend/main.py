@@ -40,6 +40,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 import garment  # local: Pipeline 1 / Tier 1 garment engine (real garment mesh)
+import physics_drape  # local: Pipeline 2 physics-baked drape (delta library)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -64,6 +65,12 @@ FRONTEND_PUBLIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "pub
 # Dressed-avatar engine: "v2" = Pipeline 1 real garment mesh; "v1" = legacy
 # vertex-paint fallback. Overridable via the MANIKAN_DRESSED_ENGINE env var.
 USE_GARMENT_V2: bool = os.getenv("MANIKAN_DRESSED_ENGINE", "v2").lower() != "v1"
+
+# Pipeline 2: physics-baked drape via the precomputed delta library (relaxed
+# pose, tee category). Male-only for now (female needs its own tuning pass +
+# grid). Falls back to the kinematic v2 fit if disabled or if it errors, so
+# avatar generation never breaks. Toggle with MANIKAN_PHYSICS_DRAPE=0.
+USE_PHYSICS_DRAPE: bool = os.getenv("MANIKAN_PHYSICS_DRAPE", "1") != "0"
 
 # Optimisation hyper-parameters (tuned for SMPL on CPU)
 OPT_ITERATIONS: int = 80
@@ -1044,6 +1051,59 @@ def _load_product_texture(product_id: Optional[str]):
     return result
 
 
+def _dressed_glb_physics(
+    model,
+    betas: torch.Tensor,
+    height_cm: float,
+    chest_cm: float,
+    garment_chest_cm: Optional[float],
+    color_hex: str,
+    texture_image,
+) -> bytes:
+    """
+    Pipeline 2 runtime path: pose the body in the RELAXED pose (whole avatar
+    goes relaxed for the tee category), fetch a physics-quality drape from the
+    baked delta library (interpolated over build/height within the chosen size
+    slab), and assemble the 2-node GLB. No simulation happens here — the drape
+    is a cheap kinematic fit + a precomputed delta (see physics_drape.py).
+    """
+    draper = physics_drape.get_draper()
+
+    # relaxed-pose body: lower both shoulders (SMPL body_pose joints 16/17)
+    body_pose = torch.zeros(1, 69, dtype=torch.float32, device=DEVICE)
+    a = physics_drape.RELAXED_SHOULDER_ANGLE
+    body_pose[0, 45:48] = torch.tensor([0.0, 0.0, -a], device=DEVICE)
+    body_pose[0, 48:51] = torch.tensor([0.0, 0.0, a], device=DEVICE)
+    with torch.no_grad():
+        output = model(
+            betas=betas.to(DEVICE),
+            global_orient=torch.zeros(1, 3, dtype=torch.float32, device=DEVICE),
+            body_pose=body_pose,
+            return_verts=True,
+        )
+    body_verts = output.vertices.detach().cpu().numpy().squeeze().astype(np.float64)
+    faces = np.asarray(model.faces, dtype=np.int64)
+    lbs_weights = model.lbs_weights.detach().cpu().numpy()
+
+    # if no size was chosen, default to a fitted size (flat chest ~= body/2)
+    gchest = garment_chest_cm if garment_chest_cm is not None else chest_cm / 2.0
+
+    draped, garment_faces, garment_uv = draper.drape(
+        body_verts, faces, lbs_weights,
+        chest_cm=chest_cm, height_cm=height_cm,
+        garment_chest_cm=gchest, body_chest_cm=chest_cm,
+    )
+
+    glb = garment.build_dressed_glb(
+        body_verts, faces, draped, garment_faces,
+        color_hex, height_cm / 100.0,
+        garment_uv=garment_uv, texture_image=texture_image,
+    )
+    logger.info("Dressed avatar v2 (physics drape): garment=%d verts, %d bytes",
+                len(draped), len(glb))
+    return glb
+
+
 def generate_dressed_avatar_mesh_v2(
     sex: str,
     height_cm: float,
@@ -1083,6 +1143,18 @@ def generate_dressed_avatar_mesh_v2(
         target_hips_cm=hips_cm,
         num_iters=40,
     )
+
+    # Pipeline 2: physics-baked drape (relaxed pose + delta library). Male-only
+    # for now; any failure falls through to the kinematic fit below so avatar
+    # generation is never blocked.
+    if USE_PHYSICS_DRAPE and sex == "male":
+        try:
+            return _dressed_glb_physics(
+                model, betas, height_cm, chest_cm,
+                garment_chest_cm, tshirt_color_hex, texture_image,
+            )
+        except Exception:
+            logger.exception("Physics drape failed; falling back to kinematic dress()")
 
     # Step 2: body vertices at SMPL native scale (pose = 0; height applied later)
     with torch.no_grad():
